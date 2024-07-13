@@ -1,0 +1,232 @@
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          RADIUS CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip radius source-interface vlan {{ source_vlan }}
+!
+ip access-list extended IPV4_CRITICAL_AUTH_ACL
+    10 permit ip any any
+!
+ipv6 access-list IPV6_CRITICAL_AUTH_ACL
+    sequence 10 permit ipv6 any any
+!
+access-session acl default passthrough
+!
+no device-tracking logging theft
+device-tracking tracking
+!
+device-tracking policy IPDT_MAX_10
+    limit address-count 10
+    no protocol udp
+    tracking enable
+!
+device-tracking policy IPDT_MAX_0
+    device-role switch
+    trusted-port
+!
+vlan 999
+	name BLACKHOLE
+!
+service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+    vlan 999
+service-template DefaultCriticalVoice_SRV_TEMPLATE
+    voice vlan
+service-template DefaultCriticalAccess_SRV_TEMPLATE
+    access-group IPV4_CRITICAL_AUTH_ACL
+    access-group IPV6_CRITICAL_AUTH_ACL
+!
+dot1x system-auth-control
+dot1x critical eapol
+!
+!After this command you need to answer yes, check if it goes well!!
+!
+class-map type control subscriber match-all AAA_SVR_DOWN_AUTHD_HOST
+    match authorization-status authorized
+    match result-type aaa-timeout
+!
+!
+class-map type control subscriber match-all AAA_SVR_DOWN_UNAUTHD_HOST
+    match authorization-status unauthorized
+    match result-type aaa-timeout
+!
+class-map type control subscriber match-all AUTHC_SUCCESS-AUTHZ_FAIL
+    match authorization-status unauthorized
+    match result-type success
+!
+class-map type control subscriber match-all DOT1X
+    match method dot1x
+!
+class-map type control subscriber match-all DOT1X_FAILED
+    match method dot1x
+    match result-type method dot1x authoritative
+!
+class-map type control subscriber match-all DOT1X_MEDIUM_PRIO
+    match authorizing-method-priority gt 20
+!
+class-map type control subscriber match-all DOT1X_NO_RESP
+    match method dot1x
+    match result-type method dot1x agent-not-found
+!
+class-map type control subscriber match-any IN_CRITICAL_AUTH
+    match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+class-map type control subscriber match-any IN_CRITICAL_AUTH_CLOSED_MODE
+    match activated-service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+    match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+class-map type control subscriber match-all MAB
+    match method mab
+!
+class-map type control subscriber match-all MAB_FAILED
+    match method mab
+    match result-type method mab authoritative
+!
+class-map type control subscriber match-all MAB_NO_RESP
+    match method mab
+    match result-type method mab agent-not-found
+!
+!
+class-map type control subscriber match-none NOT_IN_CRITICAL_AUTH
+    match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+class-map type control subscriber match-none NOT_IN_CRITICAL_AUTH_CLOSED_MODE
+    match activated-service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+    match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+policy-map type control subscriber DOT1X
+ event session-started match-all
+  1 class always do-until-failure
+   1 authenticate using dot1x
+!
+policy-map type control subscriber MAB2DOT1X
+ event session-started match-all
+  10 class always do-until-failure
+   10 authenticate using mab priority 10
+ event authentication-failure match-first
+  10 class MAB_NO_RESP do-until-failure
+   10 terminate mab
+   20 authenticate using dot1x priority 20
+  20 class DOT1X_FAILED do-until-failure
+   10 terminate dot1x
+   20 authentication-restart 60
+  30 class always do-until-failure
+   10 terminate mab
+   20 terminate dot1x
+   30 authentication-restart 60
+ event agent-found match-all
+  10 class always do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 10
+!
+policy-map type control subscriber PORT-AUTH-POLICY
+ event session-started match-all
+  10 class always do-until-failure
+   10 authenticate using dot1x priority 10
+ event authentication-failure match-first
+  5 class DOT1X_FAILED do-until-failure
+   10 terminate dot1x
+   20 authentication-restart 60
+  10 class DOT1X_NO_RESP do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 20
+  20 class MAB_FAILED do-until-failure
+	20 authentication-restart 60
+  40 class always do-until-failure
+	10 terminate dot1x
+	20 terminate mab
+	30 authentication-restart 60
+ event agent-found match-all
+  10 class always do-until-failure
+    10 terminate mab
+	20 authenticate using dot1x priority 10
+ event inactivity-timeout match-all
+  10 class always do-until-failure
+   10 clear-session
+ event authentication-success match-all
+  10 class always do-until-failure
+   10 activate service-template DEFAULT_LINKSEC_POLICY_SHOULD_SECURE
+!
+aaa new-model
+aaa authentication login console none
+!
+line con 0
+    privilege level 15
+    login authentication console
+!
+line vty 0 4
+    privilege level 15
+    transport input ssh
+!
+line vty 5 31
+    privilege level 15
+    transport input ssh
+!
+radius-server attribute 6 on-for-login-auth
+radius-server attribute 6 support-multiple
+radius-server attribute 8 include-in-access-req
+radius-server attribute 25 access-request include
+radius-server attribute 31 mac format ietf upper-case
+radius-server attribute 31 send nas-port-detail mac-only
+radius-server dead-criteria time 5 tries 3
+radius-server retransmit 1
+radius-server deadtime 15
+radius-server key {{ radius_key }}
+!
+radius server login1
+  address ipv4 {{ ip_add_radius_login_1 }} auth-port 1812 acct-port 1813
+  key {{ radius_key }}
+  timeout 4
+  retransmit 3
+  automate-tester username radius-check probe-on
+!
+radius server login2
+    address ipv4 {{ ip_add_radius_login_2 }} auth-port 1812 acct-port 1813
+    key {{ radius_key }}
+    timeout 4
+    retransmit 3
+    automate-tester username radius-check probe-on
+!
+radius server endpoint1
+    address ipv4 {{ ip_add_radius_endpoint_1 }} auth-port 1812 acct-port 1813
+    key {{ radius_key }}
+    timeout 4
+    retransmit 3
+    automate-tester username radius-check probe-on
+!
+radius server endpoint2
+    address ipv4 {{ ip_add_radius_endpoint_2 }} auth-port 1812 acct-port 1813
+    key {{ radius_key }}
+    timeout 4
+    retransmit 3
+    automate-tester username radius-check probe-on
+!
+aaa group server radius ise-radius-login
+    server name login1
+    server name login2
+    ip radius source-interface vlan {{ source_vlan }}
+!
+aaa group server radius ise-radius-endpoint
+    server name endpoint1
+    server name endpoint2
+    ip radius source-interface vlan {{ source_vlan }}
+!
+aaa server radius dynamic-author
+    client {{ ip_add_radius_login_1 }} server-key {{ radius_key }}
+    client {{ ip_add_radius_login_2 }} server-key {{ radius_key }}
+    client {{ ip_add_radius_endpoint_1 }} server-key {{ radius_key }}
+    client {{ ip_add_radius_endpoint_2 }} server-key {{ radius_key }}
+!
+aaa session-id common
+aaa authentication login default local group ise-radius-login
+aaa authentication enable default enable
+aaa authentication dot1x default group ise-radius-endpoint
+aaa authorization network default group ise-radius-endpoint
+aaa accounting update newinfo periodic 2880
+aaa accounting identity default start-stop group ise-radius-login
+!
+aaa authentication login WEB group ise-radius-login
+aaa authorization exec WEB group ise-radius-login
+ip http authentication aaa login-authentication WEB
+ip http authentication aaa exec-authorization WEB
+!

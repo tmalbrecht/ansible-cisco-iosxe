@@ -1,0 +1,30 @@
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Run following command from ansible base for optimal use of this playbook:
+# ansible-playbook -i inventory/testing.ini playbooks/iosxe_backup_and_copy_run_start.yml --ask-vault-pass
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco devices.
+# --diff will show and log the changes you have made to the running config
+
+# This playbook will backup the config to a given location with the hostname and timestamp as filename. After it will save the running-config to startup-config if they are not the same yet.
+
+---
+- name: "PLAY 1: Backup config and save running-config to startup-config."
+  connection: network_cli
+  hosts: R4
+  gather_facts: no
+  vars:
+    timestamp: "{{ lookup('pipe', 'date +%Y-%m-%d_%H%M') }}"
+  tasks:
+
+    - name: "TASK 1: Open up vault files."
+      include_vars: "../files/secrets_fault.yml"
+      delegate_to: localhost
+
+    - name: "TASK 2: Backup config and save running-config to startup-config if not the same."
+      cisco.ios.ios_config:
+        backup: true
+        backup_options:
+          dir_path: ./files/config_backup/
+          filename: "{{ hostvars[inventory_hostname]['inventory_hostname'] }}-config-{{ timestamp }}.cfg"
+        save_when: always
+...

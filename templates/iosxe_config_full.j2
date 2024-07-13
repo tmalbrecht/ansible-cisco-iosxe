@@ -1,0 +1,562 @@
+!Configuration generated on {{ time_now }}
+
+not tested yet, needs further work in filling out variables in all group and host vars.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          BASE CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+hostname {{ hostname }}
+!
+username {{ admin_user}} privilege 15 secret {{ admin_pass }}
+!
+no cdp run
+lldp run
+no service pad
+service password-encryption
+login block-for 60 attempts 3 within 10
+!
+clock timezone CET 1 0
+clock summer-time CET recurring last Sat Mar 2:00 last Sat Oct 2:00
+ip routing
+!
+boot system switch all flash:packages.conf
+boot system switch all bootflash:{{ software_file }}
+!
+ip name-server xxxx xxxx
+ip name-server vrf Mgmt-vrf xxxx xxxx
+ip domain name example.com
+!
+login on-failure log
+login on-success log
+vtp mode off
+logging buffered 1024000
+service timestamps log datetime localtime show-timezone
+!
+archive
+ log config
+  logging enable
+  logging size 1000
+ path flash:myconfiguration
+ maximum 14
+ time-period 1440
+!
+no ip http server
+!
+ip access-list standard 99
+ 10 permit xxxx
+ 20 permit xxxx
+!
+ip ssh version 2
+ip ssh server algorithm encryption 3des-cbc aes128-ctr aes192-ctr aes256-ctr
+ip ssh client algorithm encryption 3des-cbc aes128-ctr aes192-ctr aes256-ctr
+!
+ip http access-class ipv4 99
+ip http auth-retry 3 time-window 3
+ip http secure-server
+ip http tls-version TLSv1.2
+!
+ip forward-protocol nd
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          VLAN CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+{% for vlan in vlans %}
+vlan {{ vlan.id }}
+  name {{ vlan.name }}
+!
+{% endfor %}
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          IP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+int vlan {{ source_vlan }}
+  ip address {{ mgmt_ip }} {{ mgmt_mask }}
+  ip helper-address xxxx
+  ip helper-address xxxx
+!
+ip route 0.0.0.0 0.0.0.0 {{ default_gateway }}
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          INTERFACE CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+interface Port-channel1
+  description uplink to {{ site }}_CS01
+  switchport mode trunk
+!
+ip http client source-interface Port-channel1
+ip domain lookup source-interface Port-channel1
+!
+
+{% for int in interfaces %}
+{% if int['type'] == "uplink" %}
+int gig {{ int.interface }}
+  description {{ int.description }}
+  switchport mode trunk
+  channel-group 1 mode on
+!
+{% endif %}
+{% endfor %}
+{#
+{% for int in interfaces %}
+int gig {{ int.interface }}
+  description {{ int.description }}
+  {% if int['type'] == "uplink" %}
+  switchport mode trunk
+  channel-group 1 mode on
+  {% elif int['type'] == "data" %}
+  switchport mode access
+  switchport access vlan {{int.vlan}}
+  storm-control broadcast level 20.00
+  storm-control multicast level 20.00
+  spanning-tree portfast
+  spanning-tree bpduguard enable
+  no snmp trap link-status
+  {% elif int['type'] == "nvx" %}
+  switchport mode access
+  switchport access vlan {{int.vlan}}
+  spanning-tree portfast
+  spanning-tree bpduguard enable
+  no snmp trap link-status
+  no ip igmp snooping tcn flood
+  {% elif int['type'] == "ap" %}
+  switchport mode trunk
+  switchport trunk native vlan {{ ap_vlan }}
+  switchport trunk allowed vlan {{ ap_wlan }},{{ ap_vlan }}
+ 	storm-control broadcast level 20.00
+ 	storm-control multicast level 20.00
+ 	spanning-tree portfast trunk
+ 	spanning-tree bpduguard enable
+  {% endif %}
+  {% if int['security'] == "eap" %}
+  device-tracking attach-policy IPDT_MAX_10
+  dot1x pae authenticator
+  dot1x timeout tx-period 10
+  dot1x max-reauth-req 3
+  mab
+  access-session host-mode multi-auth
+  access-session closed
+  access-session port-control auto
+  access-session control-direction in
+  authentication periodic
+  authentication timer reauthenticate server
+  service-policy type control subscriber PORT-AUTH-POLICY
+  {% elif int['security'] == "static" %}
+  switchport port-security
+  {% endif %}
+!
+{% endfor %}
+#}
+!
+ip igmp snooping querier
+ip igmp snooping vlan {{vlan_nvx}} immediate-leave
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          DHCP SNOOPING
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip dhcp snooping
+no ip dhcp snooping information option
+ip dhcp snooping vlan {{ dhcp_snooping_vlans }}
+!
+int po1
+	ip dhcp snooping trust
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          RADIUS CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip radius source-interface vlan {{ source_vlan }}
+!
+ip access-list extended IPV4_CRITICAL_AUTH_ACL
+10 permit ip any any
+!
+ipv6 access-list IPV6_CRITICAL_AUTH_ACL
+sequence 10 permit ipv6 any any
+!
+access-session acl default passthrough
+!
+no device-tracking logging theft
+device-tracking tracking
+!
+device-tracking policy IPDT_MAX_10
+limit address-count 10
+no protocol udp
+tracking enable
+!
+device-tracking policy IPDT_MAX_0
+device-role switch
+trusted-port
+!
+vlan 999
+	name BLACKHOLE
+!
+service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+vlan 999
+service-template DefaultCriticalVoice_SRV_TEMPLATE
+voice vlan
+service-template DefaultCriticalAccess_SRV_TEMPLATE
+access-group IPV4_CRITICAL_AUTH_ACL
+access-group IPV6_CRITICAL_AUTH_ACL
+dot1x system-auth-control
+dot1x critical eapol
+!
+!After this command you need to answer yes, check if it goes well!!
+!
+class-map type control subscriber match-all AAA_SVR_DOWN_AUTHD_HOST
+  match authorization-status authorized
+  match result-type aaa-timeout
+!
+!
+class-map type control subscriber match-all AAA_SVR_DOWN_UNAUTHD_HOST
+  match authorization-status unauthorized
+  match result-type aaa-timeout
+!
+class-map type control subscriber match-all AUTHC_SUCCESS-AUTHZ_FAIL
+  match authorization-status unauthorized
+  match result-type success
+!
+class-map type control subscriber match-all DOT1X
+  match method dot1x
+!
+class-map type control subscriber match-all DOT1X_FAILED
+  match method dot1x
+  match result-type method dot1x authoritative
+!
+class-map type control subscriber match-all DOT1X_MEDIUM_PRIO
+ match authorizing-method-priority gt 20
+!
+class-map type control subscriber match-all DOT1X_NO_RESP
+  match method dot1x
+  match result-type method dot1x agent-not-found
+!
+class-map type control subscriber match-any IN_CRITICAL_AUTH
+  match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+class-map type control subscriber match-any IN_CRITICAL_AUTH_CLOSED_MODE
+  match activated-service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+  match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+class-map type control subscriber match-all MAB
+  match method mab
+!
+class-map type control subscriber match-all MAB_FAILED
+  match method mab
+  match result-type method mab authoritative
+!
+class-map type control subscriber match-all MAB_NO_RESP
+  match method mab
+  match result-type method mab agent-not-found
+!
+!
+class-map type control subscriber match-none NOT_IN_CRITICAL_AUTH
+  match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+class-map type control subscriber match-none NOT_IN_CRITICAL_AUTH_CLOSED_MODE
+  match activated-service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+  match activated-service-template DefaultCriticalVoice_SRV_TEMPLATE
+!
+policy-map type control subscriber DOT1X
+ event session-started match-all
+  1 class always do-until-failure
+   1 authenticate using dot1x
+!
+policy-map type control subscriber MAB2DOT1X
+ event session-started match-all
+  10 class always do-until-failure
+   10 authenticate using mab priority 10
+ event authentication-failure match-first
+  10 class MAB_NO_RESP do-until-failure
+   10 terminate mab
+   20 authenticate using dot1x priority 20
+  20 class DOT1X_FAILED do-until-failure
+   10 terminate dot1x
+   20 authentication-restart 60
+  30 class always do-until-failure
+   10 terminate mab
+   20 terminate dot1x
+   30 authentication-restart 60
+ event agent-found match-all
+  10 class always do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 10
+!
+policy-map type control subscriber PMAP_DefaultWiredDot1xClosedAuth_MAB_1X
+event session-started match-all
+ 10 class always do-until-failure
+ 10 authenticate using mab priority 20
+event authentication-failure match-first
+ 5 class DOT1X_FAILED do-until-failure
+ 10 terminate dot1x
+ 20 authentication-restart 60
+ 10 class AAA_SVR_DOWN_UNAUTHD_HOST do-until-failure
+! 10 activate service-template DefaultCriticalAuthVlan_SRV_TEMPLATE
+! 20 activate service-template DefaultCriticalVoice_SRV_TEMPLATE
+! 30 authorize
+ 40 pause reauthentication
+ 20 class AAA_SVR_DOWN_AUTHD_HOST do-until-failure
+ 10 pause reauthentication
+ 20 authorize
+ 30 class MAB_FAILED do-until-failure
+ 10 terminate mab
+ 20 authenticate using dot1x retries 2 retry-time 0 priority 10
+ 40 class DOT1X_NO_RESP do-until-failure
+ 10 terminate dot1x
+ 20 authentication-restart 60
+ 60 class always do-until-failure
+ 10 terminate mab
+ 20 terminate dot1x
+ 30 authentication-restart 60
+event aaa-available match-all
+ 10 class IN_CRITICAL_AUTH_CLOSED_MODE do-until-failure
+ 10 clear-session
+ 20 class NOT_IN_CRITICAL_AUTH_CLOSED_MODE do-until-failure
+ 10 resume reauthentication
+event agent-found match-all
+ 10 class always do-until-failure
+ 10 terminate mab
+ 20 authenticate using dot1x retries 2 retry-time 0 priority 10
+event inactivity-timeout match-all
+ 10 class always do-until-failure
+ 10 clear-session
+event authentication-success match-all
+event violation match-all
+ 10 class always do-until-failure
+ 10 restrict
+event authorization-failure match-all
+ 10 class AUTHC_SUCCESS-AUTHZ_FAIL do-until-failure
+ 10 authentication-restart 60
+!
+policy-map type control subscriber PORT-AUTH-POLICY
+ event session-started match-all
+  10 class always do-until-failure
+   10 authenticate using dot1x priority 10
+ event authentication-failure match-first
+  5 class DOT1X_FAILED do-until-failure
+   10 terminate dot1x
+   20 authentication-restart 60
+  10 class DOT1X_NO_RESP do-until-failure
+   10 terminate dot1x
+   20 authenticate using mab priority 20
+  20 class MAB_FAILED do-until-failure
+	20 authentication-restart 60
+  40 class always do-until-failure
+	10 terminate dot1x
+	20 terminate mab
+	30 authentication-restart 60
+ event agent-found match-all
+  10 class always do-until-failure
+    10 terminate mab
+	20 authenticate using dot1x priority 10
+ event inactivity-timeout match-all
+  10 class always do-until-failure
+   10 clear-session
+ event authentication-success match-all
+  10 class always do-until-failure
+   10 activate service-template DEFAULT_LINKSEC_POLICY_SHOULD_SECURE
+!
+aaa new-model
+aaa authentication login console none
+!
+line con 0
+ privilege level 15
+ login authentication console
+!
+line vty 0 4
+privilege level 15
+transport input ssh
+!
+line vty 5 31
+ 	privilege level 15
+transport input ssh
+!
+radius-server attribute 6 on-for-login-auth
+radius-server attribute 6 support-multiple
+radius-server attribute 8 include-in-access-req
+radius-server attribute 25 access-request include
+radius-server attribute 31 mac format ietf upper-case
+radius-server attribute 31 send nas-port-detail mac-only
+radius-server dead-criteria time 5 tries 3
+radius-server retransmit 1
+radius-server deadtime 15
+radius-server key {{ radius_key }}
+!
+radius server login1
+  address ipv4 xxxx auth-port 1812 acct-port 1813
+  key {{ radius_key }}
+  timeout 4
+  retransmit 3
+  automate-tester username radius-check probe-on
+!
+radius server login2
+  address ipv4 xxxx auth-port 1812 acct-port 1813
+  key {{ radius_key }}
+  timeout 4
+  retransmit 3
+  automate-tester username radius-check probe-on
+!
+radius server endpoint1
+  address ipv4 xxxx auth-port 1812 acct-port 1813
+  key {{ radius_key }}
+  timeout 4
+  retransmit 3
+  automate-tester username radius-check probe-on
+!
+radius server endpoint2
+  address ipv4 xxxx auth-port 1812 acct-port 1813
+  key {{ radius_key }}
+  timeout 4
+  retransmit 3
+  automate-tester username radius-check probe-on
+!
+aaa group server radius ise-radius-login
+  server name login1
+  server name login2
+  ip radius source-interface vlan {{ source_vlan }}
+!
+aaa server radius dynamic-author
+  client xxxx server-key {{ radius_key }}
+  client xxxx server-key {{ radius_key }}
+  client xxxx server-key {{ radius_key }}
+  client xxxx server-key {{ radius_key }}
+!
+aaa session-id common
+aaa authentication login default local group ise-radius-login
+aaa authentication enable default enable
+aaa authentication dot1x default group ise-radius-group
+aaa authorization network default group ise-radius-group
+aaa accounting update newinfo periodic 2880
+aaa accounting identity default start-stop group ise-radius-login
+!
+aaa authentication login WEB group ise-radius-login
+aaa authorization exec WEB group ise-radius-login
+ip http authentication aaa login-authentication WEB
+ip http authentication aaa exec-authorization WEB
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                DEVICE SENSORS CONFIG CISCO ISE RDC
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+device-sensor filter-list dhcp list TLV-DHCP
+option name host-name
+option name requested-address
+option name parameter-request-list
+option name class-identifier
+option name client-identifier
+device-sensor filter-spec dhcp include list TLV-DHCP
+!
+device-sensor filter-list lldp list TLV-LLDP
+tlv name system-name
+tlv name system-description
+!
+device-sensor filter-spec lldp include list TLV-LLDP
+device-sensor notify all-changes
+no macro auto monitor
+!
+device-sensor filter-list dhcp list DHCP-LIST
+ option name host-name
+ option name requested-address
+ option name parameter-request-list
+ option name class-identifier
+ option name client-identifier
+!
+device-sensor filter-list lldp list LLDP-LIST
+ tlv name system-name
+ tlv name system-description
+ tlv name system-capabilities
+!
+epm logging
+!
+mac address-table notification mac-move
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                        AUTO BACKUOP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+event manager applet BACKUP_CONFIG
+ event timer cron cron-entry "0 23 * * *"
+ action 0.1 cli command "enable"
+ action 0.2 cli command "write memory"
+ action 0.3 cli command "copy running-config ftp://Anonymous@xxxx/FTP_Landing_Zone/{{ hostname }}.txt" pattern "Address"
+ action 0.4 cli command "" pattern "Destination"
+ action 0.5 cli command ""
+ action 0.6 syslog msg "CFG WRITTEN!"
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                        SNMP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip access-list standard 98
+ 10 permit xxxx
+ 20 permit xxxx
+!
+snmp-server group SGROUP v3 auth read NVIEW
+snmp-server group SGROUP v3 priv read NVIEW
+snmp-server view NVIEW iso included
+snmp-server view NVIEW internet included
+snmp-server view NVIEW mib-2 included
+snmp-server view NVIEW cisco included
+snmp-server group SNMPUSER1 v3 auth
+snmp-server view SCOM mib-2 included
+snmp-server group SNMPUSER1 v3 auth read SCOM
+snmp-server user SNMPUSER1 DTNLMON_1 v3 auth md5 {{ snmp_user_dtnl_pass }} access 98
+snmp-server user SNMPUSER2 SGROUP v3 auth sha {{ snmp_user_netbrain_pass }} priv aes 128
+snmp-server trap-source vlan {{ source_vlan }}
+snmp-server location NL - {{ snmp_location }}
+snmp-server contact Lab
+snmp-server enable traps smart-license
+snmp-server enable traps cpu threshold
+snmp-server enable traps envmon
+snmp-server enable traps transceiver all
+snmp-server host xxxx version 3 auth SNMPUSER1
+snmp-server host xxxx version 3 auth SNMPUSER1
+snmp-server host xxxx version 3 auth SNMPUSER1
+snmp-server host xxxx version 3 auth SNMPUSER1
+snmp-server ifindex persist
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                       ACL ADMIN LOGIN CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip access-list extended 100
+ 10 remark MANAGEMENT_SERVERS
+ 10 permit tcp host xxxx any eq 22
+ 20 permit tcp host xxxx any eq 22
+ 80 deny ip any any log
+!
+line vty 0 4
+ access-class 100 in
+!
+line vty 5 31
+ access-class 100 in
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                      LICENSING CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+license smart transport smart
+license smart url default
+!
+call-home
+ ! If contact email address in call-home is configured as sch-smart-licensing@cisco.com
+ ! the email address configured in Cisco Smart License Portal will be used as contact email address to send SCH notifications.
+ contact-email-addr sch-smart-licensing@cisco.com
+ http resolve-hostname ipv4-first
+ no http secure server-identity-check
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                      NTP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ntp server xxxx
+ntp server xxxx
+!
+ntp source vlan {{ source_vlan }}
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          SAVE CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+copy running-config startup-config

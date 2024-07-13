@@ -1,0 +1,184 @@
+not tested yet, needs further work in filling out variables in all group and host vars.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          BASE CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+hostname {{ hostname }}
+!
+username {{ admin_user }} privilege 15 secret {{ admin_pass }}
+!
+no cdp run
+lldp run
+no service pad
+service password-encryption
+login block-for 60 attempts 3 within 10
+!
+clock timezone CET 1 0
+clock summer-time CET recurring last Sat Mar 2:00 last Sat Oct 2:00
+ip routing
+!
+boot system switch all flash:packages.conf
+boot system switch all bootflash:{{ software_file }}
+!
+ip name-server {{ name_server_ip_1 }} {{ name_server_ip_2 }}
+ip name-server vrf Mgmt-vrf {{ name_server_ip_1 }} {{ name_server_ip_2 }}
+ip domain name {{ domain_name }}
+!
+login on-failure log
+login on-success log
+vtp mode off
+logging buffered 1024000
+service timestamps log datetime localtime show-timezone
+!
+archive
+ log config
+  logging enable
+  logging size 1000
+ path flash:myconfiguration
+ maximum 14
+ time-period 1440
+!
+no ip http server
+!
+ip access-list standard 99
+ 10 permit {{ mgmt_server_ip_1 }}
+ 20 permit {{ mgmt_server_ip_2 }}
+!
+ip ssh version 2
+ip ssh server algorithm encryption 3des-cbc aes128-ctr aes192-ctr aes256-ctr
+ip ssh client algorithm encryption 3des-cbc aes128-ctr aes192-ctr aes256-ctr
+!
+ip http access-class ipv4 99
+ip http auth-retry 3 time-window 3
+ip http secure-server
+ip http tls-version TLSv1.2
+!
+ip forward-protocol nd
+!
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                DEVICE SENSORS CONFIG CISCO ISE RDC
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+device-sensor filter-list dhcp list TLV-DHCP
+option name host-name
+option name requested-address
+option name parameter-request-list
+option name class-identifier
+option name client-identifier
+device-sensor filter-spec dhcp include list TLV-DHCP
+!
+device-sensor filter-list lldp list TLV-LLDP
+tlv name system-name
+tlv name system-description
+!
+device-sensor filter-spec lldp include list TLV-LLDP
+device-sensor notify all-changes
+no macro auto monitor
+!
+device-sensor filter-list dhcp list DHCP-LIST
+ option name host-name
+ option name requested-address
+ option name parameter-request-list
+ option name class-identifier
+ option name client-identifier
+!
+device-sensor filter-list lldp list LLDP-LIST
+ tlv name system-name
+ tlv name system-description
+ tlv name system-capabilities
+!
+epm logging
+!
+mac address-table notification mac-move
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                        AUTO BACKUOP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+event manager applet BACKUP_CONFIG
+ event timer cron cron-entry "0 23 * * *"
+ action 0.1 cli command "enable"
+ action 0.2 cli command "write memory"
+ action 0.3 cli command "copy running-config ftp://Anonymous@xxxx/FTP_Landing_Zone/{{ hostname }}.txt" pattern "Address"
+ action 0.4 cli command "" pattern "Destination"
+ action 0.5 cli command ""
+ action 0.6 syslog msg "CFG WRITTEN!"
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                        SNMP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip access-list standard 98
+ 10 permit {{ snmp_server_ip_1 }}
+ 20 permit {{ snmp_server_ip_2 }}
+!
+snmp-server group SGROUP v3 auth read NVIEW
+snmp-server group SGROUP v3 priv read NVIEW
+snmp-server view NVIEW iso included
+snmp-server view NVIEW internet included
+snmp-server view NVIEW mib-2 included
+snmp-server view NVIEW cisco included
+snmp-server group SNMPUSER1 v3 auth
+snmp-server view SCOM mib-2 included
+snmp-server group SNMPUSER1 v3 auth read SCOM
+snmp-server user SNMPUSER1 DTNLMON_1 v3 auth md5 {{ snmp_user_dtnl_pass }} access 98
+snmp-server user SNMPUSER2 SGROUP v3 auth sha {{ snmp_user_netbrain_pass }} priv aes 128
+snmp-server trap-source vlan {{ source_vlan }}
+snmp-server location NL - {{ snmp_location }}
+snmp-server contact Lab
+snmp-server enable traps smart-license
+snmp-server enable traps cpu threshold
+snmp-server enable traps envmon
+snmp-server enable traps transceiver all
+snmp-server host {{ snmp_server_ip_1 }} version 3 auth SNMPUSER1
+snmp-server host {{ snmp_server_ip_2 }} version 3 auth SNMPUSER1
+snmp-server host xxxx version 3 auth SNMPUSER1
+snmp-server host xxxx version 3 auth SNMPUSER1
+snmp-server ifindex persist
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                       ACL ADMIN LOGIN CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ip access-list extended 100
+ 10 remark MANAGEMENT_SERVERS
+ 10 permit tcp host xxxx any eq 22
+ 20 permit tcp host xxxx any eq 22
+ 80 deny ip any any log
+!
+line vty 0 4
+ access-class 100 in
+!
+line vty 5 31
+ access-class 100 in
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                      LICENSING CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+license smart transport smart
+license smart url default
+!
+call-home
+ ! If contact email address in call-home is configured as sch-smart-licensing@cisco.com
+ ! the email address configured in Cisco Smart License Portal will be used as contact email address to send SCH notifications.
+ contact-email-addr sch-smart-licensing@cisco.com
+ http resolve-hostname ipv4-first
+ no http secure server-identity-check
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                      NTP CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+ntp server xxxx
+ntp server xxxx
+!
+ntp source vlan {{ source_vlan }}
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                          SAVE CONFIG
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+copy running-config startup-config

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report NTP</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 15px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+<table>
+    <thead>
+        <tr>
+            <th>Hostname</th>
+            <th>NTP Servers</th>
+            <th>NTP Associations</th>
+        </tr>
+    </thead>
+    <tbody>
+{% for device in groups['routers'] %}
+        <tr>
+            <td>{{ device }}</td>
+            <td>
+            {% if hostvars[device]['ntp_config_data'] is defined %}
+                {% for key, value in hostvars[device]['ntp_config_data'].items() %}
+                    {{ value.keys() }}
+                {% endfor %}
+            {% endif %}
+            </td>
+            <td>
+            {% if hostvars[device]['ntp_associations_data'] is defined %}
+                {% for key, value in hostvars[device]['ntp_associations_data'].items() %}
+                    {{ value.keys() }}
+                {% endfor %}
+            {% endif %}
+            </td>
+        </tr>
+{% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

@@ -1,0 +1,7 @@
+---
+ansible_network_os: ios
+source_vlan: 100
+ip_add_radius_login_1: 10.20.10.1
+ip_add_radius_login_2: 10.20.10.2
+ip_add_radius_endpoint_1: 10.20.20.1
+ip_add_radius_endpoint_2: 10.20.20.2

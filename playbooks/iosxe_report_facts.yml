@@ -1,0 +1,39 @@
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Run following command from ansible base for optimal use of this playbook:
+# ansible-playbook -i inventory/testing.ini playbooks/iosxe_report_facts.yml --ask-vault-pass
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco switches
+
+# Make sure that host group used in playbook is the same as the host group in the template!
+---
+- name: "PLAY 1: Gather facts from Cisco IOS-XE devices."
+  connection: network_cli
+  hosts: routers
+  gather_facts: no
+  tasks:
+
+    - name: "Task 1: Open up vault files"
+      include_vars: "../files/secrets_fault.yml"
+      delegate_to: localhost
+
+    - name: "TASK 2: Gather facts from Cisco IOS-XE devices and store output."
+      cisco.ios.ios_facts:
+      register: ios_facts
+
+    - name: "TASK 3: Print output onto screen"
+      debug:
+        msg: "Hostname: {{ ansible_net_hostname }} | Software: {{ ansible_net_version }} | SN: {{ ansible_net_serialnum }}"
+
+
+- name: "PLAY 2: Generate HTML report."
+  hosts: localhost
+  gather_facts: no
+  vars:
+    timestamp: "{{ lookup('pipe', 'date +%Y-%m-%d_%H%M') }}"
+  tasks:
+
+    - name: "TASK 1: Generate HTML report."
+      template:
+        src: "../templates/iosxe_report_facts.j2"
+        dest: "../files/reports/iosxe_report_facts_{{ timestamp }}.html"
+...

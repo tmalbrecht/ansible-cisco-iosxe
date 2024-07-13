@@ -1,0 +1,12 @@
+!
+no ip access-list extended 100
+!
+ip access-list extended 100
+ 10 remark MANAGEMENT SERVERS
+ 10 permit tcp host 10.20.10.12 any eq 22
+ 20 permit tcp host 10.20.10.12 any eq 443
+ 30 remark PASSWORD SERVERS
+ 30 permit tcp host 10.40.30.10 any eq 22
+ 40 permit tcp host 10.40.40.10 any eq 22
+ 50 deny ip any any log
+!

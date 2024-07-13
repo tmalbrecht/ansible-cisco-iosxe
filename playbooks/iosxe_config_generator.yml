@@ -1,0 +1,22 @@
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Run following command from ansible base for optimal use of this playbook:
+# ansible-playbook -i inventory/testing.ini playbooks/iosxe_config_generator.yml --ask-vault-pass
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco switches
+
+# Add the needed host and group vars for the devices you want to generate config for. Adjust hosts and location template accordingly.
+
+---
+- name: "PLAY 1: Generate config according to a given template."
+  hosts: R4
+  gather_facts: no
+  vars_files:
+    - ../files/secrets_fault.yml
+  tasks:
+
+    - name: "TASK 1: Generate configuration from template."
+      template:
+        src: "../templates/iosxe_config_radius.j2"
+        dest: "../files/generated_config/{{ hostvars[inventory_hostname]['inventory_hostname'] }}_config.cfg"
+      delegate_to: localhost
+...

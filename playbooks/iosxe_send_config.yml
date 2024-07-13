@@ -1,0 +1,33 @@
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Run following command from ansible base for optimal use of this playbook:
+# ansible-playbook -i inventory/testing.ini playbooks/iosxe_send_config.yml --ask-vault-pass --diff
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#!! This playbook can not be used when there is promting from the to be configured device involved!!!
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco switches.
+# --diff will show and log the changes you have made to the running config.
+
+---
+- name: "PLAY 1: Send configuration to a Cisco IOS-XE device."
+  connection: network_cli
+  hosts: R5
+  gather_facts: no
+  vars:
+    timestamp: "{{ lookup('pipe', 'date +%Y-%m-%d_%H%M') }}"
+  tasks:
+
+    - name: "TASK 1: Open up vault files."
+      include_vars: "../files/secrets_fault.yml"
+      delegate_to: localhost
+
+    - name: "TASK 2: Backup config and configure device wiht config in template file, after save configuration."
+      cisco.ios.ios_config:
+        backup: true
+        backup_options:
+          dir_path: ./files/config_backup/
+          filename: "{{ hostvars[inventory_hostname]['inventory_hostname'] }}-config-{{ timestamp }}.cfg"
+        src: "../templates/iosxe_config_mgmt_acl.j2"
+        match: exact
+        diff_against: running
+        save_when: modified
+...

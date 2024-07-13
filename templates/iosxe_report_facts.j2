@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cisco IOS Report</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 15px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+<table>
+    <thead>
+        <tr>
+            <th>Hostname</th>
+            <th>Model Type</th>
+            <th>Serial Number</th>
+            <th>Code Version</th>
+        </tr>
+    </thead>
+    <tbody>
+{% for device in groups['routers'] %}
+        <tr>
+            <td>{{ device }}</td>
+            <td>{{hostvars[device]['ansible_net_model'] | default('unknown') }}</td>
+            <td>{{hostvars[device]['ansible_net_serialnum'] | default('unknown') }}</td>
+	        <td>{{hostvars[device]['ansible_net_version'] | default('unknown') }}</td>
+        </tr>
+{% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

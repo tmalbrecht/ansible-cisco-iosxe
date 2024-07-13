@@ -1,0 +1,60 @@
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Run following command from ansible base for optimal use of this playbook:
+# ansible-playbook -i inventory/testing.ini playbooks/iosxe_report_ntp_servers.yml --ask-vault-pass
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco switches.
+
+# Make sure that host group used in playbook is the same as the reference in the template!
+
+# Add show ip name servers and show radius server-group all.
+
+---
+- name: "PLAY 1: Verify ntp config Cisco IOS and IOS-XE devices."
+  connection: network_cli
+  hosts: routers
+  gather_facts: no
+  vars:
+    timestamp: "{{ lookup('pipe', 'date +%Y-%m-%d_%H%M') }}"
+  roles:
+    - ansible-pyats
+  tasks:
+
+    - name: "TASK 1: Open up vault files."
+      include_vars: "../files/secrets_fault.yml"
+      delegate_to: localhost
+
+    - name: "TASK 2: Get info from command show ntp config and store it, this will fail if pyats is unable to parse it. Playbook will continue."
+      pyats_parse_command:
+        command: show ntp config
+      register: ntp_config
+      ignore_errors: yes
+
+    - name: "TASK 3: Get info from command show ntp associations and store it, this will fail if pyats is unable to parse it. Playbook will continue."
+      pyats_parse_command:
+        command: show ntp associations
+      register: ntp_associations
+      ignore_errors: yes
+
+    - name: "TASK 4: Initialize dictionaries for all data gathered."
+      set_fact:
+        ntp_config_data: {}
+        ntp_associations_data: {}
+
+    - name: "TASK 5: Store ntp_config for every device in dictionary. Skip when data is empty."
+      set_fact:
+        ntp_config_data: "{{ ntp_config_data | combine({inventory_hostname: ntp_config.structured.vrf.default.address}) }}"
+      when:
+        - ntp_config.structured.vrf.default.address is defined
+
+    - name: "TASK 6: Store ntp_associations for every device in dictionary. Skip when data is empty."
+      set_fact:
+        ntp_associations_data: "{{ ntp_associations_data | combine({inventory_hostname: ntp_associations.structured.peer}) }}"
+      when:
+        - ntp_associations.structured.peer is defined
+
+    - name: "TASK 7: Generate HTML report."
+      template:
+        src: "../templates/iosxe_report_ntp.j2"
+        dest: "../files/reports/iosxe_report_ntp_{{ timestamp }}.html"
+      delegate_to: localhost
+...

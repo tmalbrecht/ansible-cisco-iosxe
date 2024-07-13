@@ -1,0 +1,44 @@
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Run following command from ansible base for optimal use of this playbook:
+# ansible-playbook -i inventory/testing.ini playbooks/iosxe_report_port_security.yml --ask-vault-pass
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco switches
+
+# Make sure that host group used in playbook is the same as the host group in the template.
+
+---
+- name: "PLAY 1: Verify what ports have port-security enabled in Cisco IOS-XE devices."
+  connection: network_cli
+  hosts: switches
+  gather_facts: no
+  vars:
+    timestamp: "{{ lookup('pipe', 'date +%Y-%m-%d_%H%M') }}"
+  roles:
+    - ansible-pyats
+  tasks:
+
+    - name: "TASK 1: Open up vault files"
+      include_vars: "../files/secrets_fault.yml"
+      delegate_to: localhost
+
+    - name: "TASK 2: Get info from command show port-security and store it, this will fail if pyats is unable to parse it. Playbook will continue."
+      pyats_parse_command:
+        command: show port-security
+      register: version_output
+      ignore_errors: yes
+
+    - name: "TASK 3: Initialize interfaces_data dictionary."
+      set_fact:
+        interfaces_data: {}
+
+    - name: "TASK 4: Extract interface port-security data for every device and store it in dictionary. Skip when data is empty."
+      set_fact:
+        interfaces_data: "{{ interfaces_data | combine({inventory_hostname: version_output.structured.interfaces}) }}"
+      when: version_output.structured.interfaces is defined
+
+    - name: "TASK 6: Generate HTML report."
+      template:
+        src: "../templates/iosxe_report_port_security.j2"
+        dest: "../files/reports/iosxe_report_port_security_{{ timestamp }}.html"
+      delegate_to: localhost
+...
