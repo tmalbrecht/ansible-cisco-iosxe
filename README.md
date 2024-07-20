@@ -7,8 +7,8 @@ This repository contains ansible playbooks that can be used for the following ta
   * backup config and save running-config to startup-config
   * generate config
   * generate html report with general facts (model, software version, SN)
-  * generate report about ntp servers that are configured
-  * generate report about ports with port security enabled
+  * generate html report about ntp servers that are configured
+  * generate html report about ports with port security enabled
   * configure switch with given template
   * verify config with master config
 
