@@ -1,6 +1,6 @@
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # Run following command from ansible base for optimal use of this playbook:
-# ansible-playbook -i inventory/testing.ini playbooks/iosxe_verify_config.yml --ask-vault-pass --diff
+# ansible-playbook -i inventory.ini playbooks/iosxe_verify_config.yml --ask-vault-pass --diff
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # --ask-vault-pass is needed to let ansible decrypt secrets needed to access the Cisco switches
 # --diff will show and log the changes you have made to the running config

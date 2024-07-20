@@ -1,6 +1,6 @@
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # Run following command from ansible base for optimal use of this playbook:
-# ansible-playbook -i inventory/testing.ini playbooks/iosxe_send_config.yml --ask-vault-pass --diff
+# ansible-playbook -i inventory.ini playbooks/iosxe_send_config.yml --ask-vault-pass --diff
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #!! This playbook can not be used when there is promting from the to be configured device involved!!!
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
