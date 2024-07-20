@@ -4,7 +4,7 @@
 # ansible-cisco-iosxe
 This repository contains ansible playbooks that can be used for the following tasks on Cisco IOS-XE switches:
 
-  * backup config and sava running-config to startup-config
+  * backup config and save running-config to startup-config
   * generate config
   * generate html report with general facts (model, software version, SN)
   * generate report about ntp servers that are configured
