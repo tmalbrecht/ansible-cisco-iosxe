@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report NTP</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 15px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+<table>
+    <thead>
+        <tr>
+            <th>Hostname</th>
+            <th>NTP Servers</th>
+            <th>NTP Associations</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>R1</td>
+            <td>
+                                                ['0.nl.pool.ntp.org', '1.nl.pool.ntp.org']
+                                        </td>
+            <td>
+                                                ['95.211.123.72', '86.80.166.233']
+                                        </td>
+        </tr>
+        <tr>
+            <td>R2</td>
+            <td>
+                                                ['1.nl.pool.ntp.org', '0.nl.pool.ntp.org']
+                                        </td>
+            <td>
+                                                ['45.83.205.227', '185.51.192.62']
+                                        </td>
+        </tr>
+        <tr>
+            <td>R3</td>
+            <td>
+                                                ['1.nl.pool.ntp.org', '0.nl.pool.ntp.org']
+                                        </td>
+            <td>
+                                                ['158.101.216.150', '45.138.55.62']
+                                        </td>
+        </tr>
+    </tbody>
+</table>
+</body>
+</html>
